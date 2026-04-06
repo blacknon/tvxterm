@@ -26,6 +26,10 @@ func main() {
 	term := tvxterm.New(app)
 	term.SetBorder(true).SetTitle("tvxterm")
 	term.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
+		offset, _ := term.ScrollbackStatus()
+		if offset == 0 {
+			return action, event
+		}
 		switch action {
 		case tview.MouseScrollUp:
 			term.ScrollbackUp(3)

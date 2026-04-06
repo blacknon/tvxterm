@@ -1,6 +1,10 @@
 tvxterm
 ===
 
+<p align="center">
+  <img src="./img/tvxterm.gif" width="77%" />
+</p>
+
 `tvxterm` is a terminal emulator widget for [tview](https://github.com/rivo/tview).
 
 It gives you a small VT-style emulator plus a `tview.Primitive`, so you can embed an interactive terminal inside terminal UIs written in Go.
@@ -129,7 +133,7 @@ go run ./sample/go-sshlib-shell
 For `sample/go-sshlib-shell`, you can use flags:
 
 ```bash
-go run ./sample/go-sshlib-shell -- \
+go run ./sample/go-sshlib-shell \
   -host example.com \
   -port 22 \
   -user myuser \
@@ -140,7 +144,7 @@ go run ./sample/go-sshlib-shell -- \
 Or password authentication:
 
 ```bash
-go run ./sample/go-sshlib-shell -- \
+go run ./sample/go-sshlib-shell \
   -host example.com \
   -port 22 \
   -user myuser \
