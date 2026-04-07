@@ -165,6 +165,53 @@ func (v *View) PasteHandler() func(text string, setFocus func(p tview.Primitive)
 	})
 }
 
+// SendKey writes a single key event to the attached backend using the same
+// encoding rules as interactive input handling.
+func (v *View) SendKey(event *tcell.EventKey) bool {
+	if event == nil {
+		return false
+	}
+
+	v.mu.RLock()
+	backend := v.backend
+	v.mu.RUnlock()
+	if backend == nil {
+		return false
+	}
+
+	ss := v.emu.Snapshot()
+	seq, ok := keyToBytes(event, ss.AppCursor || ss.AppKeypad)
+	if !ok {
+		return false
+	}
+	v.sendInput(backend, seq)
+	return true
+}
+
+// SendPaste writes pasted text to the attached backend, preserving bracketed
+// paste behavior when enabled by the remote terminal.
+func (v *View) SendPaste(text string) bool {
+	if text == "" {
+		return false
+	}
+
+	v.mu.RLock()
+	backend := v.backend
+	v.mu.RUnlock()
+	if backend == nil {
+		return false
+	}
+
+	ss := v.emu.Snapshot()
+	payload := []byte(text)
+	if ss.BracketedPaste {
+		payload = append([]byte("\x1b[200~"), payload...)
+		payload = append(payload, []byte("\x1b[201~")...)
+	}
+	v.sendInput(backend, payload)
+	return true
+}
+
 func (v *View) Focus(delegate func(p tview.Primitive)) {
 	v.focused = true
 	v.reportFocus(true)
