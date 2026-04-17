@@ -216,6 +216,8 @@ func TestViewScrollbackPageMethodsChangeOffset(t *testing.T) {
 
 type stubBackend struct {
 	writes [][]byte
+	cols   int
+	rows   int
 }
 
 func (b *stubBackend) Read(p []byte) (int, error) { return 0, io.EOF }
@@ -223,7 +225,11 @@ func (b *stubBackend) Write(p []byte) (int, error) {
 	b.writes = append(b.writes, append([]byte(nil), p...))
 	return len(p), nil
 }
-func (b *stubBackend) Resize(cols, rows int) error { return nil }
+func (b *stubBackend) Resize(cols, rows int) error {
+	b.cols = cols
+	b.rows = rows
+	return nil
+}
 func (b *stubBackend) Close() error                { return nil }
 
 func TestViewInputResetsScrollbackToBottom(t *testing.T) {
@@ -398,6 +404,72 @@ func TestViewMouseHandlerReportsWhenEnabled(t *testing.T) {
 	}
 	if got := string(backend.writes[0]); got != "\x1b[<0;2;2M" {
 		t.Fatalf("expected sgr mouse sequence, got %q", got)
+	}
+}
+
+func TestViewDrawReservesColumnForScrollbar(t *testing.T) {
+	v := New(nil)
+	v.SetScrollbar(true)
+	v.SetRect(0, 0, 6, 4)
+	backend := &stubBackend{}
+	v.backend = backend
+
+	screen := tcell.NewSimulationScreen("UTF-8")
+	if err := screen.Init(); err != nil {
+		t.Fatalf("init simulation screen: %v", err)
+	}
+	defer screen.Fini()
+
+	v.Draw(screen)
+
+	if backend.cols != 5 || backend.rows != 4 {
+		t.Fatalf("expected backend resize to terminal area 5x4, got %dx%d", backend.cols, backend.rows)
+	}
+}
+
+func TestViewDrawRendersScrollbarThumb(t *testing.T) {
+	v := New(nil)
+	v.SetScrollbar(true)
+	v.SetRect(0, 0, 5, 3)
+	v.emu = NewEmulator(4, 3)
+	_, _ = v.emu.Write([]byte("1111\n2222\n3333\n4444"))
+	v.ScrollbackPageUp()
+
+	screen := tcell.NewSimulationScreen("UTF-8")
+	if err := screen.Init(); err != nil {
+		t.Fatalf("init simulation screen: %v", err)
+	}
+	defer screen.Fini()
+
+	v.Draw(screen)
+
+	var thumbCells int
+	for row := 0; row < 3; row++ {
+		mainc, _, _, _ := screen.GetContent(4, row)
+		if mainc == '█' {
+			thumbCells++
+		}
+	}
+	if thumbCells == 0 {
+		t.Fatalf("expected scrollbar thumb to be drawn")
+	}
+}
+
+func TestViewMouseHandlerUsesScrollbar(t *testing.T) {
+	v := New(nil)
+	v.SetScrollbar(true)
+	v.SetRect(0, 0, 5, 4)
+	v.emu = NewEmulator(4, 4)
+	_, _ = v.emu.Write([]byte("1111\n2222\n3333\n4444\n5555\n6666\n7777\n8888"))
+
+	handler := v.MouseHandler()
+	consumed, _ := handler(tview.MouseLeftDown, tcell.NewEventMouse(4, 0, tcell.Button1, tcell.ModNone), func(p tview.Primitive) {})
+
+	if !consumed {
+		t.Fatalf("expected scrollbar click to be consumed")
+	}
+	if v.scrollOffset == 0 {
+		t.Fatalf("expected scrollbar click to move scroll offset")
 	}
 }
 
