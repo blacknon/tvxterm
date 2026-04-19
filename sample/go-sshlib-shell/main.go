@@ -94,6 +94,7 @@ func main() {
 			term:    tvxterm.New(app),
 			backend: backend,
 		}
+		p.term.SetScrollbar(true)
 		p.term.SetBorder(true).SetTitle(fmt.Sprintf("%s [%s@%s]", name, cfg.user, cfg.host))
 		p.term.SetBackendExitHandler(func(_ *tvxterm.View, err error) {
 			app.QueueUpdateDraw(func() {
@@ -256,14 +257,16 @@ func main() {
 			x, y := event.Position()
 			for _, p := range currentPage.panes {
 				if p.term.InRect(x, y) {
-					offset, _ := p.term.ScrollbackStatus()
-					if offset == 0 {
+					offset, rows := p.term.ScrollbackStatus()
+					if rows == 0 {
 						return event, action
 					}
 					if action == tview.MouseScrollUp {
 						p.term.ScrollbackUp(3)
-					} else {
+					} else if offset > 0 {
 						p.term.ScrollbackDown(3)
+					} else {
+						return event, action
 					}
 					if currentPage.focus == p {
 						updateStatus("")
