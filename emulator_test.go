@@ -717,6 +717,88 @@ func TestEmulatorAlternateScreenDoesNotAccumulateScrollback(t *testing.T) {
 	}
 }
 
+func TestEmulatorEscIndexMovesDownWithoutCarriageReturn(t *testing.T) {
+	e := NewEmulator(4, 3)
+
+	_, _ = e.Write([]byte("ab\x1bDc"))
+	ss := e.Snapshot()
+
+	if got := ss.Cells[1][2].Ch; got != 'c' {
+		t.Fatalf("expected ESC D to preserve column while moving down, got %q", got)
+	}
+	if got := ss.CursorX; got != 3 {
+		t.Fatalf("expected cursorX=3 after ESC D write, got %d", got)
+	}
+	if got := ss.CursorY; got != 1 {
+		t.Fatalf("expected cursorY=1 after ESC D write, got %d", got)
+	}
+}
+
+func TestEmulatorEscNextLineMovesToColumnZero(t *testing.T) {
+	e := NewEmulator(4, 3)
+
+	_, _ = e.Write([]byte("ab\x1bEc"))
+	ss := e.Snapshot()
+
+	if got := ss.Cells[1][0].Ch; got != 'c' {
+		t.Fatalf("expected ESC E to move to next line column 0, got %q", got)
+	}
+	if got := ss.CursorX; got != 1 {
+		t.Fatalf("expected cursorX=1 after ESC E write, got %d", got)
+	}
+	if got := ss.CursorY; got != 1 {
+		t.Fatalf("expected cursorY=1 after ESC E write, got %d", got)
+	}
+}
+
+func TestEmulatorEscReverseIndexScrollsFullAlternateScreen(t *testing.T) {
+	e := NewEmulator(6, 4)
+
+	_, _ = e.Write([]byte("\x1b[?1049h111111\n222222\n333333\n444444"))
+	_, _ = e.Write([]byte("\x1b[H\x1bMAAAAAA"))
+	ss := e.Snapshot()
+
+	if !ss.UsingAlt {
+		t.Fatalf("expected alternate screen active")
+	}
+	if got := ss.Cells[0][0].Ch; got != 'A' {
+		t.Fatalf("expected reverse index redraw line at top, got %q", got)
+	}
+	if got := ss.Cells[1][0].Ch; got != '1' {
+		t.Fatalf("expected former top row shifted down after reverse index, got %q", got)
+	}
+	if got := ss.Cells[2][0].Ch; got != '2' {
+		t.Fatalf("expected second row shifted down after reverse index, got %q", got)
+	}
+	if got := ss.Cells[3][0].Ch; got != '3' {
+		t.Fatalf("expected third row shifted down after reverse index, got %q", got)
+	}
+}
+
+func TestEmulatorEscReverseIndexRespectsScrollRegion(t *testing.T) {
+	e := NewEmulator(4, 5)
+
+	_, _ = e.Write([]byte("1111\n2222\n3333\n4444\n5555"))
+	_, _ = e.Write([]byte("\x1b[2;4r\x1b[2;1H\x1bM"))
+	ss := e.Snapshot()
+
+	if got := ss.Cells[0][0].Ch; got != '1' {
+		t.Fatalf("expected row above scroll region unchanged, got %q", got)
+	}
+	if got := ss.Cells[1][0].Ch; got != ' ' {
+		t.Fatalf("expected blank row inserted at scroll-region top, got %q", got)
+	}
+	if got := ss.Cells[2][0].Ch; got != '2' {
+		t.Fatalf("expected former region top shifted down within region, got %q", got)
+	}
+	if got := ss.Cells[3][0].Ch; got != '3' {
+		t.Fatalf("expected remaining region rows shifted down within region, got %q", got)
+	}
+	if got := ss.Cells[4][0].Ch; got != '5' {
+		t.Fatalf("expected row below scroll region unchanged, got %q", got)
+	}
+}
+
 func TestEmulatorDeleteChars(t *testing.T) {
 	e := NewEmulator(6, 2)
 
