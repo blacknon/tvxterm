@@ -344,6 +344,33 @@ func TestMouseEventToBytesUsesSGREncoding(t *testing.T) {
 	}
 }
 
+func TestMouseEventToBytesUsesSGRReleaseEncoding(t *testing.T) {
+	tests := []struct {
+		name   string
+		action tview.MouseAction
+		want   string
+	}{
+		{name: "left", action: tview.MouseLeftUp, want: "\x1b[<0;2;2m"},
+		{name: "middle", action: tview.MouseMiddleUp, want: "\x1b[<1;2;2m"},
+		{name: "right", action: tview.MouseRightUp, want: "\x1b[<2;2;2m"},
+	}
+
+	ss := Snapshot{MouseVT200: true, MouseSGR: true}
+	ev := tcell.NewEventMouse(1, 1, 0, tcell.ModNone)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := mouseEventToBytes(tc.action, ev, ss, 0, 0)
+			if !ok {
+				t.Fatalf("expected mouse event to be encoded")
+			}
+			if string(got) != tc.want {
+				t.Fatalf("expected sgr release %q, got %q", tc.want, got)
+			}
+		})
+	}
+}
+
 func TestMouseEventToBytesUsesClassicEncoding(t *testing.T) {
 	ss := Snapshot{MouseVT200: true}
 	ev := tcell.NewEventMouse(1, 2, tcell.Button1, tcell.ModNone)

@@ -615,6 +615,16 @@ func mouseReportCode(action tview.MouseAction, event *tcell.EventMouse, ss Snaps
 		if ss.MouseX10 {
 			return 0, 0, false
 		}
+		if ss.MouseSGR {
+			switch action {
+			case tview.MouseLeftUp:
+				return 0, 'm', true
+			case tview.MouseMiddleUp:
+				return 1, 'm', true
+			case tview.MouseRightUp:
+				return 2, 'm', true
+			}
+		}
 		return 3, 'm', true
 	case tview.MouseScrollUp:
 		if ss.MouseX10 {
