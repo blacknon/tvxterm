@@ -230,7 +230,7 @@ func (b *stubBackend) Resize(cols, rows int) error {
 	b.rows = rows
 	return nil
 }
-func (b *stubBackend) Close() error                { return nil }
+func (b *stubBackend) Close() error { return nil }
 
 func TestViewInputResetsScrollbackToBottom(t *testing.T) {
 	v := New(nil)
@@ -344,6 +344,33 @@ func TestMouseEventToBytesUsesSGREncoding(t *testing.T) {
 	}
 }
 
+func TestMouseEventToBytesUsesSGRReleaseEncoding(t *testing.T) {
+	tests := []struct {
+		name   string
+		action tview.MouseAction
+		want   string
+	}{
+		{name: "left", action: tview.MouseLeftUp, want: "\x1b[<0;2;2m"},
+		{name: "middle", action: tview.MouseMiddleUp, want: "\x1b[<1;2;2m"},
+		{name: "right", action: tview.MouseRightUp, want: "\x1b[<2;2;2m"},
+	}
+
+	ss := Snapshot{MouseVT200: true, MouseSGR: true}
+	ev := tcell.NewEventMouse(1, 1, 0, tcell.ModNone)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := mouseEventToBytes(tc.action, ev, ss, 0, 0)
+			if !ok {
+				t.Fatalf("expected mouse event to be encoded")
+			}
+			if string(got) != tc.want {
+				t.Fatalf("expected sgr release %q, got %q", tc.want, got)
+			}
+		})
+	}
+}
+
 func TestMouseEventToBytesUsesClassicEncoding(t *testing.T) {
 	ss := Snapshot{MouseVT200: true}
 	ev := tcell.NewEventMouse(1, 2, tcell.Button1, tcell.ModNone)
@@ -383,6 +410,47 @@ func TestMouseEventToBytesUsesX10PressOnly(t *testing.T) {
 	}
 	if _, ok := mouseEventToBytes(tview.MouseMove, tcell.NewEventMouse(1, 1, tcell.Button1, tcell.ModNone), ss, 0, 0); ok {
 		t.Fatalf("expected x10 motion to be ignored")
+	}
+}
+
+func TestViewSelectedTextUsesDraggedSelection(t *testing.T) {
+	v := New(nil)
+	v.SetRect(0, 0, 8, 2)
+	v.emu.Resize(8, 2)
+	_, _ = v.emu.Write([]byte("hello\nworld"))
+
+	if !v.StartSelection(1, 0) {
+		t.Fatal("expected selection start to succeed")
+	}
+	if !v.UpdateSelection(3, 1) {
+		t.Fatal("expected selection update to succeed")
+	}
+
+	if got := v.SelectedText(); got != "ello\nworl" {
+		t.Fatalf("SelectedText() = %q, want %q", got, "ello\nworl")
+	}
+}
+
+func TestViewClearSelectionResetsState(t *testing.T) {
+	v := New(nil)
+	v.SetRect(0, 0, 6, 1)
+	v.emu.Resize(6, 1)
+	_, _ = v.emu.Write([]byte("hello"))
+
+	if !v.StartSelection(0, 0) || !v.UpdateSelection(2, 0) {
+		t.Fatal("expected selection setup to succeed")
+	}
+	if !v.HasSelection() {
+		t.Fatal("HasSelection() = false, want true")
+	}
+
+	v.ClearSelection()
+
+	if v.HasSelection() {
+		t.Fatal("HasSelection() = true after ClearSelection")
+	}
+	if got := v.SelectedText(); got != "" {
+		t.Fatalf("SelectedText() = %q after ClearSelection, want empty", got)
 	}
 }
 
